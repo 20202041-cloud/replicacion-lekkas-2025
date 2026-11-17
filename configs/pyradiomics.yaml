@@ -1,0 +1,24 @@
+# Parámetros de PyRadiomics (estándar IBSI).
+# La imagen de entrada ya está remuestreada a 1 mm y recortada a −100/600 HU.
+# Original + wavelet produce del orden de cientos de descriptores, como describe el artículo. [SUPUESTO en el detalle]
+imageType:
+  Original: {}
+  Wavelet: {}
+
+featureClass:
+  firstorder:
+  shape:
+  glcm:
+  glrlm:
+  glszm:
+  gldm:
+  ngtdm:
+
+setting:
+  binWidth: 25
+  label: 1
+  normalize: false
+  resampledPixelSpacing: null
+  correctMask: true
+  geometryTolerance: 1.0e-4
+  force2D: false

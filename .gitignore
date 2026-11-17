@@ -1,0 +1,13 @@
+# Datos (no se suben: son pesados y tienen licencia propia)
+data/raw/
+data/processed/
+outputs/
+# Artefactos de pruebas
+tests/_synthetic/
+tests/_sanity/
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/

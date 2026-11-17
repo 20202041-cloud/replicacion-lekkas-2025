@@ -1,0 +1,77 @@
+# Configuración mínima para probar el pipeline completo en CPU con el dataset sintético (tests/).
+# NO usar para la replicación real.
+paths:
+  images_dir: tests/_synthetic/images
+  labels_repo: tests/_synthetic/panorama_labels
+  processed_dir: tests/_synthetic/processed
+  outputs_dir: tests/_synthetic/outputs
+
+data:
+  image_patterns: ["{sid}_0000.nii.gz"]
+  dev_scanners: ["SIEMENS", "Philips"]
+  external_scanners: ["TOSHIBA"]
+  n_folds: 3
+  val_fold: 0
+  exclude_cross_split_patients: false
+  seed: 42
+  # Estudio con archivo vacío en Zenodo (no se puede leer).
+  exclude_studies: ["100051_00001"]
+
+preprocessing:
+  orientation: "LPS"
+  spacing_mm: [1.0, 1.0, 1.0]
+  hu_window: [-100, 600]
+  pancreas_labels: [1, 4, 5]
+  lesion_label: 1
+  crop_size: [48, 32, 24]
+  crop_margin_mm: 10
+  n_jobs: 1
+
+radiomics:
+  params_file: tests/pyradiomics_smoke.yaml
+  n_jobs: 1
+  variance_threshold: 1.0e-8
+  anova_top_k: 30
+  anova_p_max: 0.05
+  corr_threshold: 0.90
+  bootstrap_rounds: 20
+  n_final_features: 16
+
+flow_a:
+  backend: sklearn
+  learning_rate: 0.1
+  max_iter: 50
+  max_depth: 2
+  l2_regularization: 1.0
+  min_samples_leaf: 3
+
+cnn:
+  base_channels: 8
+  epochs: 2
+  batch_size: 2
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  patience: 2
+  amp: true
+  num_workers: 0
+  augment: true
+
+fusion:
+  mode: frozen
+  radiomic_proj_dim: 8
+  se_reduction: 4
+  dropout: 0.1
+  epochs: 2
+  batch_size: 2
+  lr: 1.0e-3
+  backbone_lr: 1.0e-4
+  weight_decay: 1.0e-4
+  patience: 2
+  amp: true
+
+evaluation:
+  n_bootstrap: 50
+  threshold_rule: youden
+  n_gradcam_examples: 2
+  original: {A_auc: 0.991, B_auc: 0.65, C_auc: 0.987, C_sens_min: 0.93, C_spec_min: 0.93, C_brier_max: 0.05}
+  success_tolerance_auc: 0.03

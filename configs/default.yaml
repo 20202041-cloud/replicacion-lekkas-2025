@@ -1,0 +1,96 @@
+# Configuración principal de la replicación de Lekkas et al. (2025).
+# Los valores marcados con [ARTÍCULO] provienen del resumen del artículo o del artículo de revisión;
+# los marcados con [SUPUESTO] son valores razonables que deben verificarse con el texto completo
+# o con el código publicado por los autores (ver docs/decisiones.md).
+
+paths:
+  # Carpeta con las imágenes de PANORAMA descomprimidas (lotes de Zenodo).
+  images_dir: data/raw/images
+  # Clon del repositorio DIAGNijmegen/panorama_labels.
+  labels_repo: data/raw/panorama_labels
+  # Salidas intermedias y finales.
+  processed_dir: data/processed
+  outputs_dir: outputs
+
+data:
+  # Patrones para encontrar la imagen de cada estudio ({sid} = PANORAMA_study_id).
+  image_patterns: ["{sid}_0000.nii.gz", "{sid}.nii.gz", "{sid}_0000.mha", "{sid}.mha"]
+  # Partición por fabricante [ARTÍCULO]: desarrollo = Siemens + Philips (1 257 TC); prueba externa = Toshiba (651 TC).
+  dev_scanners: ["SIEMENS", "Philips"]
+  external_scanners: ["TOSHIBA"]
+  n_folds: 5            # validación cruzada estratificada y agrupada por paciente [SUPUESTO]
+  val_fold: 0           # fold usado como validación para la CNN y la fusión [SUPUESTO]
+  # true = excluir 3 pacientes (9 estudios) que tienen estudios en desarrollo y en la prueba externa
+  exclude_cross_split_patients: false
+  seed: 42
+  # Estudio con archivo vacío en Zenodo (no se puede leer).
+  exclude_studies: ["100051_00001"]
+
+preprocessing:            # [ARTÍCULO] reorientación, 1 mm isotrópico, −100/600 HU, z-score, recorte
+  orientation: "LPS"
+  spacing_mm: [1.0, 1.0, 1.0]
+  hu_window: [-100, 600]
+  # Etiquetas de PANORAMA: 1 = lesión PDAC, 4 = parénquima pancreático, 5 = conducto pancreático.
+  pancreas_labels: [1, 4, 5]
+  lesion_label: 1
+  crop_size: [160, 128, 96]   # tamaño fijo del recorte (x, y, z) en vóxeles [SUPUESTO]
+  crop_margin_mm: 10          # margen alrededor del páncreas [SUPUESTO]
+  n_jobs: 2
+
+radiomics:
+  params_file: configs/pyradiomics.yaml
+  n_jobs: 2
+  # Selección en cascada [ARTÍCULO]: varianza → ANOVA → poda por correlación → estabilidad con bootstrap → 16 rasgos
+  variance_threshold: 1.0e-8
+  anova_top_k: 100            # [SUPUESTO]
+  anova_p_max: 0.05           # [SUPUESTO]
+  corr_threshold: 0.90        # [SUPUESTO]
+  bootstrap_rounds: 200       # [SUPUESTO]
+  n_final_features: 16        # [ARTÍCULO]
+
+flow_a:                      # [ARTÍCULO] clasificador de gradient boosting
+  backend: sklearn            # sklearn | xgboost | lightgbm
+  learning_rate: 0.05         # [SUPUESTO]
+  max_iter: 300               # [SUPUESTO]
+  max_depth: 3                # [SUPUESTO]
+  l2_regularization: 1.0      # [SUPUESTO]
+  min_samples_leaf: 20        # [SUPUESTO]
+
+cnn:                         # [ARTÍCULO] CBAM-ResNet-18 3D, entropía cruzada ponderada, precisión mixta
+  base_channels: 64
+  epochs: 60                  # [SUPUESTO]
+  batch_size: 2               # [SUPUESTO]
+  lr: 1.0e-4                  # [SUPUESTO]
+  weight_decay: 1.0e-4        # [SUPUESTO]
+  patience: 12                # parada temprana según AUC de validación [SUPUESTO]
+  amp: true
+  num_workers: 2
+  augment: true
+
+fusion:                      # [ARTÍCULO] compuerta squeeze-and-excitation; variantes congelada y extremo a extremo
+  mode: frozen                # frozen | end_to_end
+  radiomic_proj_dim: 64       # [SUPUESTO]
+  se_reduction: 16            # [SUPUESTO]
+  dropout: 0.3                # [SUPUESTO]
+  epochs: 40                  # [SUPUESTO]
+  batch_size: 2
+  lr: 1.0e-4
+  backbone_lr: 1.0e-5         # solo para end_to_end [SUPUESTO]
+  weight_decay: 1.0e-4
+  patience: 10
+  amp: true
+
+evaluation:
+  n_bootstrap: 1000
+  threshold_rule: youden      # umbral elegido en desarrollo, nunca en la prueba externa
+  n_gradcam_examples: 6
+  gradcam_layer: layer3       # layer3 (más resolución) o layer4 [SUPUESTO]
+  # Valores reportados por el estudio original, usados para la tabla comparativa.
+  original:
+    A_auc: 0.991
+    B_auc: 0.65
+    C_auc: 0.987
+    C_sens_min: 0.93
+    C_spec_min: 0.93
+    C_brier_max: 0.05
+  success_tolerance_auc: 0.03
